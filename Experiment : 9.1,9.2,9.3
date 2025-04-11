@@ -1,0 +1,235 @@
+Experiment : 9.1
+
+ 1. Course.java
+
+public class Course {
+    private String courseName;
+    private String duration;
+
+    public Course(String courseName, String duration) {
+        this.courseName = courseName;
+        this.duration = duration;
+    }
+
+    public String toString() {
+        return "Course: " + courseName + ", Duration: " + duration;
+    }
+}
+ 2. Student.java
+public class Student {
+    private String name;
+    private Course course;
+
+    public Student(String name, Course course) {
+        this.name = name;
+        this.course = course;
+    }
+
+    public void displayInfo() {
+        System.out.println("Student: " + name);
+        System.out.println(course);
+    }
+}
+
+3. AppConfig.java (Java-based configuration)
+
+import org.springframework.context.annotation.*;
+
+@Configuration
+public class AppConfig {
+
+    @Bean
+    public Course course() {
+        return new Course("Java Programming", "3 months");
+    }
+
+    @Bean
+    public Student student() {
+        return new Student("Vishal", course());
+    }
+}
+
+ 4. MainApp.java
+
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+public class MainApp {
+    public static void main(String[] args) {
+        ApplicationContext context = new AnnotationConfigApplicationContext(AppConfig.class);
+        Student student = context.getBean(Student.class);
+        student.displayInfo();
+    }
+}
+
+Experiment : 9.2
+
+ 1. Student.java (Hibernate Entity)
+
+import javax.persistence.*;
+
+@Entity
+@Table(name="students")
+public class Student {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+
+    private String name;
+    private int age;
+
+    public Student() {}
+    public Student(String name, int age) {
+        this.name = name;
+        this.age = age;
+    }
+
+    // Getters and setters
+}
+
+
+2. hibernate.cfg.xml
+
+<!DOCTYPE hibernate-configuration PUBLIC 
+"-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+"http://hibernate.sourceforge.net/hibernate-configuration-3.0.dtd">
+
+<hibernate-configuration>
+  <session-factory>
+    <property name="hibernate.connection.driver_class">com.mysql.cj.jdbc.Driver</property>
+    <property name="hibernate.connection.url">jdbc:mysql://localhost:3306/hibernatedb</property>
+    <property name="hibernate.connection.username">root</property>
+    <property name="hibernate.connection.password">password</property>
+    <property name="hibernate.dialect">org.hibernate.dialect.MySQLDialect</property>
+    <property name="hibernate.hbm2ddl.auto">update</property>
+
+    <mapping class="Student"/>
+  </session-factory>
+</hibernate-configuration>
+
+
+ 3. CRUDOperations.java
+
+import org.hibernate.*;
+import org.hibernate.cfg.Configuration;
+
+public class CRUDOperations {
+    public static void main(String[] args) {
+        SessionFactory factory = new Configuration().configure().buildSessionFactory();
+
+        // CREATE
+        Student student = new Student("Vishal", 21);
+        Session session = factory.openSession();
+        Transaction tx = session.beginTransaction();
+        session.save(student);
+        tx.commit();
+
+        // READ
+        Student s = session.get(Student.class, student.getId());
+        System.out.println("Fetched: " + s.getName());
+
+        // UPDATE
+        tx = session.beginTransaction();
+        s.setName("Vishal Prajapati");
+        session.update(s);
+        tx.commit();
+
+        // DELETE
+        tx = session.beginTransaction();
+        session.delete(s);
+        tx.commit();
+
+        session.close();
+        factory.close();
+    }
+}
+
+Experiment : 9.3
+
+1. Account.java
+import javax.persistence.*;
+
+@Entity
+public class Account {
+    @Id
+    private int accountId;
+    private String holderName;
+    private double balance;
+
+    // Getters and setters
+}
+
+2. TransactionService.java
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class TransactionService {
+
+    @Autowired
+    private AccountDAO dao;
+
+    @Transactional
+    public void transferMoney(int fromId, int toId, double amount) {
+        Account from = dao.getAccount(fromId);
+        Account to = dao.getAccount(toId);
+
+        if (from.getBalance() < amount) {
+            throw new RuntimeException("Insufficient balance");
+        }
+
+        from.setBalance(from.getBalance() - amount);
+        to.setBalance(to.getBalance() + amount);
+
+        dao.updateAccount(from);
+        dao.updateAccount(to);
+    }
+}
+
+ 3. AccountDAO.java
+
+import javax.persistence.*;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class AccountDAO {
+
+    @PersistenceContext
+    private EntityManager em;
+
+    public Account getAccount(int id) {
+        return em.find(Account.class, id);
+    }
+
+    public void updateAccount(Account account) {
+        em.merge(account);
+    }
+}
+
+4. Spring Configuration: applicationContext.xml
+
+<context:component-scan base-package="com.bank"/>
+<tx:annotation-driven transaction-manager="txManager"/>
+<bean id="txManager" class="org.springframework.orm.jpa.JpaTransactionManager">
+    <property name="entityManagerFactory" ref="entityManagerFactory"/>
+</bean>
+<bean id="entityManagerFactory" class="org.springframework.orm.jpa.LocalEntityManagerFactoryBean">
+    <property name="persistenceUnitName" value="bankPU"/>
+</bean>
+
+ 5. persistence.xml
+
+<persistence-unit name="bankPU">
+    <class>Account</class>
+    <properties>
+        <property name="hibernate.connection.driver_class" value="com.mysql.cj.jdbc.Driver"/>
+        <property name="hibernate.connection.url" value="jdbc:mysql://localhost:3306/bankdb"/>
+        <property name="hibernate.connection.username" value="root"/>
+        <property name="hibernate.connection.password" value="password"/>
+        <property name="hibernate.hbm2ddl.auto" value="update"/>
+        <property name="hibernate.dialect" value="org.hibernate.dialect.MySQLDialect"/>
+    </properties>
+</persistence-unit>
